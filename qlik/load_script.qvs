@@ -1,0 +1,213 @@
+///$tab Main
+// =====================================================================================
+// Vertriebscontrolling-Cockpit Filialen – Ladeskript Qlik Sense (Qlik Cloud)
+//
+// Datenquelle: CSV-Exporte der Python/SQL-Pipeline (data/processed/qlik/),
+//              in Qlik Cloud hochgeladen in "Datendateien" (lib://DataFiles/).
+//
+// Datenmodell (Sternschema mit verketteter Faktentabelle):
+//
+//     Filialen ──< Fakten (Ist je Tag + Plan je Monat) >── Kalender
+//        │            │
+//   Bezirkskommentare └── Wetter (Schlüssel Bundesland|Datum)
+//
+//     Datenqualitaet: unverknüpfte Tabelle (Data Island)
+// =====================================================================================
+
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep='.';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='#.##0 €;-#.##0 €';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD.MM.YYYY';
+SET TimestampFormat='DD.MM.YYYY hh:mm:ss[.fff]';
+SET FirstWeekDay=0;
+SET BrokenWeeks=0;
+SET ReferenceDay=4;
+SET FirstMonthOfYear=1;
+SET CollationLocale='de-DE';
+SET MonthNames='Jan;Feb;Mrz;Apr;Mai;Jun;Jul;Aug;Sep;Okt;Nov;Dez';
+SET LongMonthNames='Januar;Februar;März;April;Mai;Juni;Juli;August;September;Oktober;November;Dezember';
+SET DayNames='Mo;Di;Mi;Do;Fr;Sa;So';
+SET LongDayNames='Montag;Dienstag;Mittwoch;Donnerstag;Freitag;Samstag;Sonntag';
+
+// Pfad zu den hochgeladenen Dateien. In Qlik Sense Desktop z. B. 'lib://Rossmann (Desktop)/'
+SET vPfad = 'lib://DataFiles/';
+// gemeinsames Dateiformat aller CSV-Dateien
+SET vCSV = (txt, utf8, embedded labels, delimiter is ',', msq);
+// Schlüsselfelder mit % werden in der Feldliste ausgeblendet
+SET HidePrefix = '%';
+
+///$tab Mapping
+// Mapping-Tabelle: Filiale -> Bundesland. Wird per ApplyMap genutzt, um in den Ist-Daten
+// den Schlüssel zur Wettertabelle zu bilden, ohne die Filialtabelle zu joinen.
+Map_Filiale_Bundesland:
+MAPPING LOAD
+    store_id,
+    state_code
+FROM [$(vPfad)stores.csv] $(vCSV);
+
+///$tab Filialen
+Filialen:
+LOAD
+    store_id                                    AS %FilialeID,
+    store_name                                  AS Filiale,
+    store_type                                  AS Filialtyp,
+    assortment                                  AS Sortiment,
+    state_name                                  AS Bundesland,
+    region                                      AS Region,
+    district                                    AS Bezirk,
+    If(Len(competition_distance_m) = 0, Null(), competition_distance_m)
+                                                AS [Wettbewerber Entfernung m],
+    // Klassen mit führender Ziffer, damit sie in Diagrammen richtig sortiert sind
+    If(Len(competition_distance_m) = 0,     'unbekannt',
+    If(competition_distance_m <= 500,       '1) bis 500 m',
+    If(competition_distance_m <= 2000,      '2) 500 m - 2 km',
+    If(competition_distance_m <= 10000,     '3) 2 - 10 km',
+                                            '4) über 10 km'))))
+                                                AS [Wettbewerber Nähe],
+    If(promo2 = 1, 'Ja', 'Nein')                AS Dauerpromo,
+    If(has_data_gap = 1, 'Ja', 'Nein')          AS [Datenlücke],
+    missing_days                                AS [Fehlende Tage]
+FROM [$(vPfad)stores.csv] $(vCSV);
+
+///$tab Fakten
+// Ist (je Filiale und Tag) und Plan (je Filiale und Monat) werden zu EINER Faktentabelle
+// verkettet. Das ist in Qlik der übliche Weg für Fakten mit unterschiedlicher
+// Granularität: keine synthetischen Schlüssel, ein gemeinsamer Kalender.
+// Das Feld Datenart unterscheidet die Zeilen ('Ist' / 'Plan').
+Fakten:
+LOAD
+    store_id                                    AS %FilialeID,
+    Date(Date#(date, 'YYYY-MM-DD'))             AS Datum,
+    ApplyMap('Map_Filiale_Bundesland', store_id, '?') & '|' & date
+                                                AS %WetterKey,
+    'Ist'                                       AS Datenart,
+    sales                                       AS Umsatz,
+    customers                                   AS Kunden,
+    1                                           AS Filialtag,
+    promo                                       AS PromoFlag,
+    If(promo = 1, 'Promo-Tag', 'ohne Promo')    AS [Promo-Tag],
+    state_holiday                               AS Feiertag,
+    If(school_holiday = 1, 'Ferien', 'keine Ferien')
+                                                AS Schulferien,
+    is_outlier                                  AS AusreisserFlag,
+    lfl_prev_year                               AS LfL_VJ,   // 1 = Vorjahresmonat vorhanden
+    lfl_next_year                               AS LfL_FJ    // 1 = Folgejahresmonat vorhanden
+FROM [$(vPfad)sales.csv] $(vCSV);
+
+Concatenate (Fakten)
+LOAD
+    store_id                                    AS %FilialeID,
+    Date(Date#(month_start, 'YYYY-MM-DD'))      AS Datum,
+    'Plan'                                      AS Datenart,
+    plan_sales                                  AS Planumsatz,
+    plan_customers                              AS Plankunden,
+    plan_basis                                  AS Planbasis
+FROM [$(vPfad)plan.csv] $(vCSV);
+
+///$tab Wetter
+// Wetterdaten aus der Open-Meteo-API, je Bundesland und Tag.
+// Verknüpfung über den zusammengesetzten Schlüssel %WetterKey = Bundesland|Datum.
+// Die Werte sind mit Punkt als Dezimaltrennzeichen gespeichert -> Num# mit '.'.
+// Das Tausendertrennzeichen wird ausdrücklich auf ',' gesetzt, weil oben ThousandSep='.' gilt
+// und Qlik "6.4" sonst als 64 lesen könnte.
+Wetter:
+LOAD
+    state_code & '|' & date                     AS %WetterKey,
+    Num#(temp_mean_c, '#.#', '.', ',')               AS [Temperatur °C],
+    Num#(precipitation_mm, '#.#', '.', ',')          AS [Niederschlag mm],
+    If(Num#(precipitation_mm, '#.#', '.', ',') >= 5, '3) Regen (ab 5 mm)',
+    If(Num#(precipitation_mm, '#.#', '.', ',') >= 1, '2) leichter Regen',
+                                                '1) trocken'))
+                                                AS Wetterlage,
+    If(Num#(temp_mean_c, '#.#', '.', ',') >= 25, 'Hitze (ab 25 °C)',
+    If(Num#(temp_mean_c, '#.#', '.', ',') < 0,   'Frost (unter 0 °C)',
+                                            'normal'))
+                                                AS Temperaturklasse
+FROM [$(vPfad)weather.csv] $(vCSV);
+
+///$tab Kalender
+// Masterkalender: lückenlose Tagesreihe vom ersten Datum der Fakten bis zum Jahresende.
+// Drei gestapelte LOADs, von unten nach oben gelesen:
+//   3. Min und Max aus den Fakten (Floor: YearEnd liefert sonst 31.12. 23:59:59)
+//   2. je Tag dazwischen eine Zeile (WHILE + IterNo)
+//   1. Zeitfelder aus dem Datum ableiten
+// Ohne Variablen, damit keine Zahlen mit Dezimalkomma ins Skript eingesetzt werden.
+Kalender:
+LOAD
+    Datum,
+    Year(Datum)                                 AS Jahr,
+    Month(Datum)                                AS Monat,
+    Num(Month(Datum))                           AS MonatNr,
+    'Q' & Ceil(Month(Datum) / 3)                AS Quartal,
+    Date(MonthStart(Datum), 'MMM YYYY')         AS Jahresmonat,
+    Week(Datum)                                 AS KW,
+    WeekDay(Datum)                              AS Wochentag;
+LOAD
+    Date(MinDatum + IterNo() - 1)               AS Datum
+WHILE MinDatum + IterNo() - 1 <= MaxDatum;
+LOAD
+    Floor(Min(Datum))                           AS MinDatum,
+    Floor(YearEnd(Max(Datum)))                  AS MaxDatum
+RESIDENT Fakten;
+
+///$tab Kommentare
+// Bezirkskommentare aus src/commentary.py (KI-generiert oder regelbasiert).
+// Nur Bezirk als Schlüssel laden, sonst entstehen synthetische Schlüssel (z. B. über Region).
+Bezirkskommentare:
+LOAD
+    district                                    AS Bezirk,
+    comment                                     AS Bezirkskommentar,
+    comment_source                              AS [Kommentar Quelle],
+    period                                      AS [Kommentar Zeitraum]
+FROM [$(vPfad)district_commentary.csv] $(vCSV);
+
+///$tab Datenqualitaet
+// Ergebnis der Prüfregeln aus src/clean.py. Bewusst nicht verknüpft (Data Island),
+// da sich die Regeln auf den gesamten Datenbestand beziehen.
+Datenqualitaet:
+LOAD
+    rule_id                                     AS [DQ Regel],
+    [table]                                     AS [DQ Tabelle],
+    [check]                                     AS [DQ Prüfung],
+    affected_rows                               AS [DQ Betroffene Zeilen],
+    status                                      AS [DQ Status],
+    action                                      AS [DQ Maßnahme]
+FROM [$(vPfad)dq_report.csv] $(vCSV);
+
+///$tab Variablen
+// Berichtsstand: letzter Tag mit Ist-Daten. Alle YTD-Kennzahlen beziehen sich darauf.
+LetzterIst:
+LOAD Max(Datum) AS LetzterIstTag
+RESIDENT Fakten
+WHERE Datenart = 'Ist';
+
+LET vLetzterIstTag = Date(Peek('LetzterIstTag', 0, 'LetzterIst'));
+LET vAktJahr       = Year(Peek('LetzterIstTag', 0, 'LetzterIst'));
+LET vVorJahr       = $(vAktJahr) - 1;
+LET vAktMonat      = Num(Month(Peek('LetzterIstTag', 0, 'LetzterIst')));
+DROP TABLE LetzterIst;
+
+// Zeitraum-Filter für Set Analysis: aktuelles Jahr bzw. Vorjahr, jeweils Januar bis zum
+// letzten Ist-Monat (YTD). Die übrigen Zeitfelder werden zurückgesetzt (Monat= ...), damit
+// die Kennzahlen auch dann den YTD-Zeitraum zeigen, wenn im Dashboard ein Monat gewählt ist.
+SET vZeitAJ = Jahr={$(vAktJahr)}, MonatNr={"<=$(vAktMonat)"}, Monat=, Quartal=, Jahresmonat=, Datum=, KW=;
+SET vZeitVJ = Jahr={$(vVorJahr)}, MonatNr={"<=$(vAktMonat)"}, Monat=, Quartal=, Jahresmonat=, Datum=, KW=;
+
+// Basiskennzahlen als Variablen. Im Dashboard: $(vUmsatzAJ) / $(vPlanAJ) - 1 usw.
+// LfL = Like-for-Like: nur Filialmonate, die es in beiden Jahren gibt (siehe transform.py)
+SET vUmsatzAJ    = Sum({<$(vZeitAJ)>} Umsatz);
+SET vKundenAJ    = Sum({<$(vZeitAJ)>} Kunden);
+SET vPlanAJ      = Sum({<$(vZeitAJ)>} Planumsatz);
+SET vUmsatzVJ    = Sum({<$(vZeitVJ)>} Umsatz);
+SET vUmsatzLfLAJ = Sum({<$(vZeitAJ), LfL_VJ={1}>} Umsatz);
+SET vUmsatzLfLVJ = Sum({<$(vZeitVJ), LfL_FJ={1}>} Umsatz);
+SET vKundenLfLAJ = Sum({<$(vZeitAJ), LfL_VJ={1}>} Kunden);
+SET vKundenLfLVJ = Sum({<$(vZeitVJ), LfL_FJ={1}>} Kunden);
+
+// Ampelfarben (Plan-Abweichung)
+SET vFarbeGruen = RGB(46, 125, 50);
+SET vFarbeGelb  = RGB(249, 168, 37);
+SET vFarbeRot   = RGB(198, 40, 40);

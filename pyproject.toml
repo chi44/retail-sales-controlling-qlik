@@ -1,0 +1,14 @@
+[project]
+name = "retail-sales-controlling-qlik"
+version = "0.1.0"
+description = "Vertriebscontrolling-Cockpit für Drogeriemarkt-Filialen: Python/SQL-ETL, Star-Schema, Qlik Sense"
+readme = "README.md"
+authors = [
+    { name = "Çiğdem Kandemir" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "anthropic>=1.0.0",
+    "pandas>=3.0.6",
+    "sqlalchemy>=2.1.1",
+]

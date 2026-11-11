@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+
+# Virtual environments
+.venv
+
+# Rohdaten: Kaggle-Wettbewerbsdaten dürfen nicht weiterverteilt werden (Download siehe README)
+data/raw/*.csv
+# Ausnahme: Wetterdaten aus der API (Cache, damit die API nicht bei jedem Lauf abgefragt wird)
+!data/raw/weather_api.csv
+
+# Erzeugte Daten: entstehen jederzeit neu durch "uv run python src/run_pipeline.py"
+data/processed/
+
+# Protokolle der Pipeline-Läufe
+logs/
+
+.DS_Store
+
+# Screenshots: PNG reicht für die README, PDF-Exporte nur lokal
+docs/screenshots/*.pdf
