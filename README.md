@@ -16,7 +16,7 @@ SQL (SQLite, CTEs, Fensterfunktionen) · REST-API (Open-Meteo) · Claude API · 
 |---|---|---|
 | Vertriebsleitung | Liegen wir im Plan, und woher kommt das Wachstum? | Plan-Ist, Vorjahresvergleich, Zerlegung in Frequenz und Bon |
 | Außendienst | Welche Filialen in meinem Bezirk brauchen Aufmerksamkeit? | Bezirks- und Filialranking mit Ampel, Bezirkskommentar |
-| Category / Marketing | Wie wirken Aktionen, Wettbewerb, Wetter? | Promo-Uplift, Standortfaktoren |
+| Category / Marketing | Wie wirken Aktionen, Wettbewerb, Wetter? | SQL-Analysen (`sql/analysen.sql`), Ergebnisse unten |
 | alle | Können wir den Zahlen trauen? | Datenqualitätsbericht |
 
 ## Ergebnisse und Handlungsempfehlungen
@@ -53,8 +53,7 @@ Aufbau in Qlik Sense Cloud, Schritt-für-Schritt-Anleitung: [`docs/qlik_anleitun
 |---|---|
 | 1. Vertriebsleitung | KPIs, Monatsverlauf Ist/Plan/Vorjahr, Plan-Abweichung mit Drilldown Region → Bundesland → Bezirk → Filiale |
 | 2. Außendienst | Ampel-Ranking der Bezirke und Filialen, Kommentar mit Handlungsempfehlung je Bezirk |
-| 3. Einflussfaktoren | Promo-Uplift, Wochentag, Wettbewerbsnähe, Wetter |
-| 4. Datenqualität | Prüfregeln und Ergebnisse, naiver vs. flächenbereinigter Vorjahresvergleich |
+| 3. Datenqualität | Prüfregeln und Ergebnisse, naiver vs. flächenbereinigter Vorjahresvergleich |
 
 **Blatt 1 – Vertriebsleitung**
 
@@ -63,6 +62,10 @@ Aufbau in Qlik Sense Cloud, Schritt-für-Schritt-Anleitung: [`docs/qlik_anleitun
 **Blatt 2 – Außendienst** (Auswahl: Bezirk BY-07)
 
 ![Blatt 2 – Außendienst](docs/screenshots/02_aussendienst.png)
+
+**Blatt 3 – Datenqualität** (Auswahl: Bayern)
+
+![Blatt 3 – Datenqualität](docs/screenshots/03_datenqualitaet.png)
 
 ## Architektur
 
