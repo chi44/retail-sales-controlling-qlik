@@ -20,3 +20,6 @@ logs/
 
 # Screenshots: PNG reicht für die README, PDF-Exporte nur lokal
 docs/screenshots/*.pdf
+
+# Persönliche Arbeitsanleitung für den Qlik-Aufbau, nicht Teil des Projekts
+docs/qlik_anleitung.md

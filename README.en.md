@@ -5,10 +5,11 @@
 Portfolio project: a steering cockpit for sales management and area managers of a drugstore
 chain, built on real daily sales data from **1,115 Rossmann stores (2013–2015)**. It covers the
 full chain from data preparation, data quality checks and data modelling to a Qlik Sense
-dashboard with recommendations for action, plus AI-generated district commentary.
+dashboard with recommendations for action, plus automatically generated district commentary
+(rule-based, optionally via the Claude API).
 
 **Tools:** Qlik Sense (load script, set analysis, master items) · Python (pandas) ·
-SQL (SQLite, CTEs, window functions) · REST API (Open-Meteo) · Claude API · uv · Git
+SQL (SQLite, CTEs, window functions) · REST API (Open-Meteo) · Claude API (optional) · uv · Git
 
 ## Key findings (Jan–Jul 2015 vs. Jan–Jul 2014)
 
@@ -16,12 +17,14 @@ SQL (SQLite, CTEs, window functions) · REST API (Open-Meteo) · Claude API · u
    driven entirely by average basket (+3.7 %). Customer count −0.4 %.
    → Focus measures on footfall and prioritise districts with the steepest customer decline.
 2. **Slightly below plan (−0.6 %).** Only region North is ahead of plan. 41 of 60 districts are behind.
-3. **Promotions drive footfall.** Promo days generate +38.8 % sales per store, most of all in
-   store type A (+43 % sales, +26 % customers). This makes promotions the most direct lever for finding 1.
+3. **Promotions mainly bring more customers.** Promo days generate +38.8 % sales per store
+   (+21 % customers, +15 % average basket), most of all in store type A (+43 % sales, +26 % customers). This makes promotions the most direct lever for finding 1.
 4. **Continuous promotion ("Promo2") shows no measurable benefit.** Participating stores sell 11 % less
    per day. This is likely a selection effect, so test it with a control group before scaling up.
-5. **Stores close to a competitor are city-centre stores:** highest sales, smallest basket
-   (€8.05 vs. €10.38). Lift basket size with secondary placements and checkout zones.
+5. **Competitor proximity: high footfall, small basket.** Stores with a competitor within 500 m
+   have the highest sales but the smallest basket (€8.05 vs. €10.38), most likely city-centre
+   locations (location type is not in the data). Lift basket size with secondary placements and
+   checkout zones.
 6. **Weather has hardly any effect** (−0.9 % on rainy days, weather data from an API), so it is
    not a relevant planning factor.
 
@@ -45,9 +48,10 @@ For each district, `src/commentary.py` produces a three-sentence comment coverin
 driver and recommended action. All figures are computed in SQL. The language model only phrases
 them, following a prompt with explicit rules, so it cannot invent numbers. Without an API key,
 a rule-based fallback is used, and the dashboard shows which source produced each comment.
+The screenshots show the rule-based version.
 
 ## Note
 
 The area-manager districts and the 2015 plan figures are **simulated**. Data sources, setup
-and details are in the [German README](README.md). The step-by-step Qlik guide is in
-[`docs/qlik_anleitung.md`](docs/qlik_anleitung.md).
+and details are in the [German README](README.md), dashboard screenshots in
+[`docs/screenshots/`](docs/screenshots/).

@@ -5,10 +5,11 @@
 Portfolio-Projekt: Steuerungscockpit für die Vertriebsleitung und den Außendienst einer
 Drogeriemarktkette auf Basis echter Filialdaten von **1.115 Rossmann-Filialen (2013–2015)**.
 Von der Datenaufbereitung über Datenqualitätsprüfung und Datenmodell bis zum Qlik-Dashboard
-mit Handlungsempfehlungen, ergänzt um KI-generierte Bezirkskommentare.
+mit Handlungsempfehlungen, ergänzt um automatisch erzeugte Bezirkskommentare (regelbasiert,
+optional über die Claude API).
 
 **Tools:** Qlik Sense (Ladeskript, Set Analysis, Master-Elemente) · Python (pandas) ·
-SQL (SQLite, CTEs, Fensterfunktionen) · REST-API (Open-Meteo) · Claude API · uv · Git
+SQL (SQLite, CTEs, Fensterfunktionen) · REST-API (Open-Meteo) · Claude API (optional) · uv · Git
 
 ## Fragestellungen
 
@@ -29,17 +30,18 @@ Berichtszeitraum: Januar bis Juli 2015 (YTD), Vergleich mit Januar bis Juli 2014
    Kundenrückgang im Außendienst priorisieren (Blatt *Außendienst*).
 2. **Plan knapp verfehlt (−0,6 %).** Nur Region Nord liegt über Plan (+0,3 %). Süd (−1,1 %) und
    West (−0,9 %) liegen am deutlichsten darunter. 41 von 60 Bezirken liegen unter Plan, in 36 Bezirken sinkt die Kundenzahl.
-3. **Aktionen wirken vor allem über Frequenz.** An Promo-Tagen liegt der Umsatz je Filiale 38,8 %
-   höher. Bei Filialtyp A ist der Effekt am größten (+43 % Umsatz, +26 % Kunden), bei Typ B am
-   kleinsten (+18 %).
+3. **Aktionen bringen vor allem mehr Kunden.** An Promo-Tagen liegt der Umsatz je Filiale 38,8 %
+   höher: +21 % Kunden und +15 % Durchschnittsbon. Bei Filialtyp A ist der Effekt am größten
+   (+43 % Umsatz, +26 % Kunden), bei Typ B am kleinsten (+18 %).
    → *Empfehlung:* Promo-Budget bevorzugt in Typ-A- und Typ-D-Filialen einsetzen. Da Aktionen
    Frequenz bringen, sind sie der direkte Hebel für Punkt 1.
 4. **Dauerpromotion ohne erkennbaren Nutzen.** Filialen mit Dauerpromotion („Promo2“) machen
    11 % weniger Umsatz je Tag. Das ist vermutlich ein Auswahleffekt, weil eher schwächere
    Filialen teilnehmen, und kein Beleg für Wirkung.
    → *Empfehlung:* vor einer Ausweitung mit einem Test-/Kontrollgruppen-Vergleich prüfen.
-5. **Wettbewerbsnähe = Innenstadtlage.** Filialen mit einem Wettbewerber im Umkreis von 500 m
-   setzen am meisten um, haben aber den kleinsten Bon (8,05 € gegenüber 10,38 € bei über 10 km).
+5. **Wettbewerbsnähe: hohe Frequenz, kleiner Bon.** Filialen mit einem Wettbewerber im Umkreis
+   von 500 m setzen am meisten um, haben aber den kleinsten Bon (8,05 € gegenüber 10,38 € bei über
+   10 km). Vermutlich sind das überwiegend Innenstadtlagen (Lage ist im Datensatz nicht enthalten).
    → *Empfehlung:* In Innenstadtfilialen den Bon gezielt steigern, etwa über Zweitplatzierungen
    und die Kassenzone.
 6. **Wetter hat kaum Einfluss.** An Regentagen liegt der Umsatz je Filiale nur 0,9 % niedriger
@@ -47,7 +49,7 @@ Berichtszeitraum: Januar bis Juli 2015 (YTD), Vergleich mit Januar bis Juli 2014
 
 ## Dashboard
 
-Aufbau in Qlik Sense Cloud, Schritt-für-Schritt-Anleitung: [`docs/qlik_anleitung.md`](docs/qlik_anleitung.md)
+Umgesetzt in Qlik Sense (Qlik Cloud), Ladeskript: [`qlik/load_script.qvs`](qlik/load_script.qvs)
 
 | Blatt | Inhalt |
 |---|---|
@@ -123,7 +125,7 @@ Die wichtigsten Befunde:
 Nach dem Laden prüft die Pipeline außerdem die referentielle Integrität: Jeder Umsatz hat eine
 Filiale, ein Datum und einen Wetterwert.
 
-## KI-gestützte Bezirkskommentare
+## Automatische Bezirkskommentare (KI optional)
 
 `src/commentary.py` schreibt für jeden der 60 Bezirke einen Kommentar mit drei Sätzen: Lage,
 Ursache und Handlungsempfehlung. Im Außendienst-Blatt erscheint er für den ausgewählten Bezirk.
@@ -135,7 +137,7 @@ Ursache und Handlungsempfehlung. Im Außendienst-Blatt erscheint er für den aus
   Verbot unbelegter Ursachen (siehe `SYSTEM_PROMPT`).
 - **Fallback:** Ohne API-Schlüssel entstehen regelbasierte Kommentare, damit das Dashboard immer
   vollständig ist. Die Spalte *Kommentar Quelle* zeigt im Dashboard, ob ein Text von der KI oder
-  von den Regeln stammt.
+  von den Regeln stammt. Die Screenshots zeigen die regelbasierte Variante.
 - **Datenschutz:** An die API gehen nur aggregierte Bezirkskennzahlen, keine personenbezogenen Daten.
 
 ## Datenquelle
@@ -143,7 +145,7 @@ Ursache und Handlungsempfehlung. Im Außendienst-Blatt erscheint er für den aus
 | Datei | Quelle |
 |---|---|
 | `train.csv`, `store.csv` | Kaggle-Wettbewerb [Rossmann Store Sales](https://www.kaggle.com/competitions/rossmann-store-sales/data) |
-| `store_states.csv`, `state_names.csv` | Bundesland je Filiale, Community-Ergänzung zum Wettbewerb (u. a. im [fast.ai-Archiv](https://files.fast.ai/part2/lesson14/rossmann.tgz)) |
+| `store_states.csv` | Bundesland je Filiale, Community-Ergänzung zum Wettbewerb (u. a. im [fast.ai-Archiv](https://files.fast.ai/part2/lesson14/rossmann.tgz)) |
 | `weather_api.csv` | [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api), wird von der Pipeline geladen |
 
 Die Rohdaten aus Kaggle sind nicht im Repo, sie müssen nach `data/raw/`.
@@ -175,7 +177,7 @@ sqlite3 -header -column data/processed/sales.db < sql/analysen.sql
 src/            Pipeline (extract_weather, clean, transform, load_to_db, commentary, run_pipeline)
 sql/            schema.sql (Star-Schema), district_kpis.sql (KI-Input), analysen.sql
 qlik/           load_script.qvs (Qlik-Ladeskript)
-docs/           qlik_anleitung.md, screenshots/
+docs/           screenshots/ (Dashboard-Blätter)
 data/raw/       Rohdaten (nicht versioniert, außer Wetter-Cache)
 data/processed/ erzeugte Daten, Datenbank, Qlik-Exporte (nicht versioniert)
 ```

@@ -97,13 +97,10 @@ def llm_comment(client, k: pd.Series) -> str:
         "schwaechste_filiale": {"name": k.weakest_store, "abweichung_plan": round(k.weakest_store_plan_dev, 4)},
         "staerkste_filiale": {"name": k.strongest_store, "abweichung_plan": round(k.strongest_store_plan_dev, 4)},
     }
-    response = client.beta.messages.create(
+    response = client.messages.create(
         model=MODEL,
         max_tokens=2000,
         system=SYSTEM_PROMPT,
-        # bei einer Ablehnung durch Sicherheitsfilter antwortet automatisch ein Ersatzmodell
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
         messages=[{
             "role": "user",
             "content": "Kennzahlen (Anteile als Dezimalzahl, 0.012 = 1,2 %):\n"
